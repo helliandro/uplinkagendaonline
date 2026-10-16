@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Sistema de Agendamento - Google Sheets</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { 
+      min-height: 100vh; 
+      margin: 0; 
+      padding: 10px; 
+      font-family: Arial, sans-serif; 
+      background: #f4f6f9; 
+      font-size: 14px; 
+      overflow-x: hidden; 
+      overflow-y: auto; 
+    }
+    
+    #loginOverlay {
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      width: 100vw; 
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.95); 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      z-index: 10000;
+    }
+    .login-box {
+      background: #fff; padding: 30px; border-radius: 8px; width: 340px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); text-align: center;
+    }
+    .login-box input { margin-bottom: 12px; text-align: center; font-size: 14px; }
+
+    .container { 
+      display: flex; 
+      gap: 15px; 
+      width: 100%; 
+      align-items: flex-start; 
+    }
+
+    .calendar-box { 
+      flex: 1; 
+      background: #fff; 
+      padding: 12px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+      display: flex; 
+      flex-direction: column; 
+      min-width: 0; 
+      width: 100%;
+    }
+
+    .sidebar { 
+      width: 380px; 
+      background: #fff; 
+      padding: 15px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+      transition: margin-right 0.3s ease, opacity 0.3s ease; 
+      display: flex; 
+      flex-direction: column; 
+      position: sticky;
+      top: 10px; 
+    }
+    .sidebar.collapsed { margin-right: -400px; opacity: 0; pointer-events: none; }
+
+    .toggle-btn { position: absolute; top: 12px; right: 12px; background: #e2e8f0; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .open-sidebar-btn { background: #2b6cb0; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
+
+    .top-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 6px;
+      flex-shrink: 0;
+      gap: 15px;
+    }
+
+    .tab-navigation { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+    .tab-btn { background: none; border: none; font-size: 14px; font-weight: bold; color: #718096; padding: 6px 12px; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab-btn.active { background: #2b6cb0; color: #fff; }
+
+    .auto-refresh-counter {
+      font-size: 12px;
+      font-weight: bold;
+      color: #2b6cb0;
+      background: #ebf8ff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #bee3f8;
+      white-space: nowrap;
+    }
+
+    .header-nav-inline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex: 1;
+      gap: 10px;
+    }
+
+    .month-nav-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .font-zoom-container {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      margin-left: 8px;
+    }
+
+    .btn-zoom {
+      background: #edf2f7;
+      border: 1px solid #cbd5e0;
+      color: #2d3748;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-zoom:hover { background: #e2e8f0; }
+
+    .month-arrow-btn {
+      background: #edf2f7;
+      border: 1px solid #cbd5e0;
+      color: #2d3748;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .month-arrow-btn:hover { background: #e2e8f0; }
+
+    .tab-content { display: none; flex-direction: column; width: 100%; min-width: 0; }
+    .tab-content.active { display: flex; }
+
+    .top-city-filters { 
+      background: #f8f9fa; 
+      padding: 8px 12px; 
+      border-radius: 6px; 
+      display: flex; 
+      align-items: center; 
+      gap: 12px; 
+      margin-bottom: 8px;
+    }
+
+    .city-filters { display: flex; flex-wrap: wrap; gap: 15px; font-size: 13px; align-items: center; }
+    .city-filters label { margin: 0; font-weight: bold; display: flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; color: #2d3748; }
+
+    .calendar-wrapper {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .grid-header { 
+      display: grid; 
+      grid-template-columns: repeat(7, minmax(0, 1fr)); 
+      gap: 2px; 
+      width: 100%;
+      margin-bottom: 2px;
+    }
+    
+    .grid-body { 
+      display: grid; 
+      grid-template-columns: repeat(7, minmax(0, 1fr)); 
+      gap: 2px; 
+      width: 100%;
+    }
+    
+    .day-header { 
+      font-weight: bold; 
+      text-align: center; 
+      padding: 8px 2px; 
+      background: #e2e8f0; 
+      color: #2d3748;
+      border-radius: 4px 4px 0 0; 
+      font-size: 13px; 
+      border: 1px solid #cbd5e0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .day-cell { 
+      border: 1px solid #cbd5e0; 
+      padding: 4px; 
+      border-radius: 2px; 
+      background: #fff; 
+      position: relative; 
+      display: flex; 
+      flex-direction: column; 
+      font-size: 12px;
+      min-width: 0; 
+      min-height: 120px; 
+    }
+    
+    .day-cell.weekend { 
+      background-color: #e2e8f0 !important; 
+    }
+
+    .event-card { 
+      color: #fff; 
+      padding: 4px 6px; 
+      margin: 2px 0; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      font-weight: bold; 
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15); 
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      text-transform: uppercase;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .typing-card {
+      background-color: #feefc3;
+      color: #744210;
+      border: 1px dashed #d69e2e;
+      padding: 4px 6px;
+      margin: 2px 0;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: bold;
+      animation: pulseTyping 1.5s infinite alternate;
+    }
+
+    @keyframes pulseTyping {
+      0% { opacity: 0.6; }
+      100% { opacity: 1; }
+    }
+
+    .event-card-title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+    }
+
+    .event-card-sub {
+      opacity: 0.95;
+      font-weight: normal;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    .order-tag { 
+      background: rgba(0, 0, 0, 0.25); 
+      padding: 1px 4px; 
+      border-radius: 3px; 
+      margin-right: 3px; 
+    }
+
+    .nav-btn-drag.drag-over { background-color: #3182ce !important; color: #fff !important; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group.full-width { grid-column: span 2; }
+    
+    label { display: block; margin-top: 4px; font-size: 13px; font-weight: bold; }
+    
+    input[type="text"], textarea { 
+      text-transform: uppercase; 
+    }
+    
+    input, select, textarea { width: 100%; padding: 6px; margin-top: 2px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; }
+    
+    .btn-group { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; grid-column: span 2; }
+    button.btn-primary { padding: 8px; background: #2b6cb0; color: #fff; border: none; border-radius: 4px; cursor: pointer; flex: 1; font-size: 13px; font-weight: bold; min-width: 100px; }
+    button.btn-danger { padding: 8px; background: #e53e3e; color: #fff; border: none; border-radius: 4px; cursor: pointer; flex: 1; font-size: 13px; font-weight: bold; display: none; min-width: 80px; }
+    button.btn-secondary { padding: 8px; background: #718096; color: #fff; border: none; border-radius: 4px; cursor: pointer; flex: 1; font-size: 13px; font-weight: bold; min-width: 100px; }
+    button.btn-copy { padding: 8px; background: #38a169; color: #fff; border: none; border-radius: 4px; cursor: pointer; flex: 1; font-size: 13px; font-weight: bold; min-width: 110px; }
+
+    .table-container { background: #fff; padding: 10px; border-radius: 8px; width: 100%; }
+    .table-header-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .table-container table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .table-container th, .table-container td { border: 1px solid #cbd5e0; padding: 6px 8px; text-align: left; }
+    .table-container th { background: #2b6cb0; color: #fff; font-weight: bold; position: sticky; top: 0; }
+
+    .row-odd-date { background-color: #ffffff !important; }
+    .row-even-date { background-color: #edf2f7 !important; }
+    .table-container tbody tr:hover { background-color: #e2e8f0 !important; }
+
+    #userBar { font-size: 13px; font-weight: bold; color: #2d3748; display: flex; align-items: center; gap: 8px; }
+    #loadingStatus { font-size: 12px; color: #2b6cb0; font-weight: bold; margin-left: 8px; }
+  </style>
+</head>
+<body>
+
+<div id="loginOverlay">
+  <div class="login-box">
+    <h3 style="margin-top:0;">Acesso ao Sistema</h3>
+    <label>Usuário:</label>
+    <input type="text" id="loginUser" placeholder="Seu usuário">
+    <label>Senha:</label>
+    <input type="password" id="loginPass" placeholder="Sua senha">
+    <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="efetuarLogin()">Entrar</button>
+    <p id="loginError" style="color: red; font-size: 12px; margin-top: 10px;"></p>
+  </div>
+</div>
+
+<div class="container">
+  <div class="calendar-box">
+    <div class="top-header-bar">
+      <div class="tab-navigation">
+        <button class="tab-btn active" id="tabCalendarBtn" onclick="switchTab('calendar')">📅 Calendário</button>
+        <button class="tab-btn" id="tabListBtn" onclick="switchTab('list')">📋 Lista de Agendamentos</button>
+        <button class="tab-btn" id="tabLogsBtn" onclick="switchTab('logs')">📜 Histórico</button>
+        <div class="auto-refresh-counter" id="refreshCounter">🔄 Atualizando em: 20s</div>
+      </div>
+
+      <div class="header-nav-inline">
+        <div class="month-nav-container">
+          <button class="month-arrow-btn nav-btn-drag" id="btnPrev" onclick="changeMonth(-1)" ondragover="handleNavDragOver(event, -1)" ondragleave="handleNavDragLeave(event)">◄</button>
+          <h3 id="monthTitle" style="margin:0 6px; font-size: 17px; color: #2d3748; white-space: nowrap;"></h3>
+          <button class="month-arrow-btn nav-btn-drag" id="btnNext" onclick="changeMonth(1)" ondragover="handleNavDragOver(event, 1)" ondragleave="handleNavDragLeave(event)">►</button>
+          
+          <div class="font-zoom-container">
+            <button class="btn-zoom" onclick="changeFontSize(-1)" title="Diminuir Fonte">A-</button>
+            <button class="btn-zoom" onclick="changeFontSize(1)" title="Aumentar Fonte">A+</button>
+          </div>
+
+          <span id="loadingStatus"></span>
+        </div>
+
+        <div id="userBar">
+          <span id="currentUserDisplay"></span>
+          <button class="btn-zoom" onclick="logout()">Sair</button>
+          <button class="open-sidebar-btn" id="openMenuBtn" style="display: none;" onclick="toggleSidebar()">+ Agendar / Menu</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: CALENDÁRIO -->
+    <div id="tabCalendar" class="tab-content active">
+      <div class="top-city-filters">
+        <div class="city-filters" id="cityFilters"></div>
+      </div>
+
+      <div class="calendar-wrapper">
+        <div class="grid-header" id="calendarHeader"></div>
+        <div class="grid-body" id="calendarGrid"></div>
+      </div>
+    </div>
+
+    <!-- TAB 2: LISTA ORDENADA -->
+    <div id="tabList" class="tab-content">
+      <div class="table-container">
+        <div class="table-header-actions">
+          <h3 style="margin:0;" id="listTitle">Agendamentos do Mês</h3>
+          <button class="btn-primary" style="flex: none; padding: 6px 14px;" onclick="exportListCSV()">📊 Exportar Lista (CSV)</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 80px;">Data</th>
+              <th style="width: 50px;">Ord</th>
+              <th>Cliente</th>
+              <th>Cidade</th>
+              <th>Bairro</th>
+              <th>Turno</th>
+              <th>Serviço</th>
+              <th>Status</th>
+              <th>Contato</th>
+              <th>Atendente</th>
+            </tr>
+          </thead>
+          <tbody id="listTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 3: HISTÓRICO DE LOGS -->
+    <div id="tabLogs" class="tab-content">
+      <div class="table-container">
+        <div class="table-header-actions">
+          <h3 style="margin:0;">Histórico Detalhado de Alterações</h3>
+          <button class="btn-primary" style="flex: none; padding: 6px 14px;" onclick="downloadLogsTXT()">Salvar Histórico (.txt)</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 150px;">Data / Hora</th>
+              <th style="width: 120px;">Usuário</th>
+              <th>Modificação</th>
+            </tr>
+          </thead>
+          <tbody id="logsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAINEL LATERAL (SIDEBAR) -->
+  <div class="sidebar" id="sidebar">
+    <button class="toggle-btn" onclick="toggleSidebar()" title="Fechar Menu">✕</button>
+    <h3 id="formTitle" style="margin-top: 0; margin-bottom: 10px; font-size: 16px;">Novo Agendamento</h3>
+    
+    <form id="scheduleForm" class="form-grid">
+      <input type="hidden" id="eventId">
+
+      <div class="form-group">
+        <label>Data do Agendamento:</label>
+        <input type="date" id="eventDate" required onchange="notifyTyping()">
+      </div>
+
+      <div class="form-group">
+        <label>Ticket:</label>
+        <input type="text" id="ticket" placeholder="Ex: 27901">
+      </div>
+
+      <div class="form-group">
+        <label>Ordem:</label>
+        <input type="number" id="ordem" min="1" placeholder="Ex: 1, 2, 3...">
+      </div>
+      <div class="form-group">
+        <label>Nome:</label>
+        <input type="text" id="nome" required oninput="notifyTyping()">
+      </div>
+      <div class="form-group">
+        <label>CPF/CNPJ:</label>
+        <input type="text" id="cpf">
+      </div>
+      <div class="form-group">
+        <label>Planos de Internet:</label>
+        <select id="plano">
+          <option value="100 MEGA">100 MEGA</option>
+          <option value="250 MEGA">250 MEGA</option>
+          <option value="350 MEGA">350 MEGA</option>
+          <option value="500 MEGA">500 MEGA</option>
+          <option value="600 MEGA">600 MEGA</option>
+          <option value="800 MEGA">800 MEGA</option>
+          <option value="1 GIGA">1 GIGA</option>
+          <option value="Outro">Outro</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Cidade:</label>
+        <select id="cidade">
+          <option value="João Pessoa">🔵 João Pessoa</option>
+          <option value="Pitimbu / Caaporã / Acaú">🟢 Pitimbu / Caaporã / Acaú</option>
+          <option value="Conde Centro">🟣 Conde Centro</option>
+          <option value="Jacumã">🔴 Jacumã</option>
+          <option value="Outro">⚪ Outro</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Turno:</label>
+        <select id="turno">
+          <option value="Manhã">Manhã</option>
+          <option value="Tarde">Tarde</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Tipo:</label>
+        <select id="tipo">
+          <option value="Casa">Casa</option>
+          <option value="Prédio">Prédio</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Bairro:</label>
+        <input type="text" id="bairro">
+      </div>
+      <div class="form-group">
+        <label>Contato(s):</label>
+        <input type="text" id="contato">
+      </div>
+      <div class="form-group">
+        <label>Serviço(s):</label>
+        <select id="servico">
+          <option value="Adesão">Adesão</option>
+          <option value="Mudança de endereço">Mudança de endereço</option>
+          <option value="Entrega de Carnê">Entrega de Carnê</option>
+          <option value="Recolhimento">Recolhimento</option>
+          <option value="Mudança de local de ponto">Mudança de local de ponto</option>
+          <option value="Troca de equipamento">Troca de equipamento</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Status:</label>
+        <select id="status">
+          <option value="AGENDANDO">AGENDANDO</option>
+          <option value="ADEQUAÇÃO DE REDE">ADEQUAÇÃO DE REDE</option>
+          <option value="AGENDADA">AGENDADA</option>
+          <option value="DESISTIU">DESISTIU</option>
+          <option value="INSTALADO">INSTALADO</option>
+          <option value="NÃO ATENDE">NÃO ATENDE</option>
+          <option value="PENDENTE">PENDENTE</option>
+          <option value="REAGENDADO">REAGENDADO</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Responsável:</label>
+        <input type="text" id="responsavel" placeholder="Digite o responsável">
+      </div>
+
+      <div class="form-group full-width">
+        <label>Última alteração:</label>
+        <input type="text" id="atendente" readonly style="background-color: #edf2f7;">
+      </div>
+
+      <div class="form-group full-width">
+        <label>Obs:</label>
+        <textarea id="obs" rows="2"></textarea>
+      </div>
+      
+      <div class="btn-group">
+        <button type="button" class="btn-primary" onclick="saveEvent()">Salvar</button>
+        <button type="button" class="btn-copy" id="btnCopyData" onclick="copyEventData()">Copiar Dados</button>
+        <button type="button" class="btn-danger" id="btnDelete" onclick="deleteEvent()">Excluir</button>
+        <button type="button" class="btn-secondary" onclick="resetForm()">Novo / Limpar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const cityData = {
+    'João Pessoa': { color: '#2b6cb0', lightBg: '#ebf8ff', emoji: '🔵' },
+    'Pitimbu / Caaporã / Acaú': { color: '#276749', lightBg: '#f0fff4', emoji: '🟢' },
+    'Conde Centro': { color: '#6b46c1', lightBg: '#faf5ff', emoji: '🟣' },
+    'Jacumã': { color: '#c53030', lightBg: '#fff5f5', emoji: '🔴' },
+    'Outro': { color: '#4a5568', lightBg: '#f7fafc', emoji: '⚪' }
+  };
+
+  const statusEmojis = {
+    'AGENDANDO': '',
+    'ADEQUAÇÃO DE REDE': '🛠️',
+    'AGENDADA': '📅',
+    'DESISTIU': '❌',
+    'INSTALADO': '✅',
+    'NÃO ATENDE': '🚫',
+    'PENDENTE': '⏳',
+    'REAGENDADO': '🔄'
+  };
+
+  const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const monthNamesAbbr = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const monthNamesFull = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  
+  let currentDate = new Date();
+  const realToday = new Date();
+  realToday.setHours(0,0,0,0);
+
+  let events = [];
+  let typingUsers = [];
+  let currentLogs = [];
+  let selectedCity = 'João Pessoa';
+  let dragNavTimer = null;
+  let typingDebounceTimer = null;
+  let currentUser = localStorage.getItem('usuarioLogado') || null;
+
+  let refreshTimerSeconds = 20;
+
+  let currentCardFontSize = parseInt(localStorage.getItem('cardFontSize')) || 11;
+
+  function changeFontSize(delta) {
+    currentCardFontSize += delta;
+    if (currentCardFontSize < 8) currentCardFontSize = 8;
+    if (currentCardFontSize > 18) currentCardFontSize = 18;
+    localStorage.setItem('cardFontSize', currentCardFontSize);
+    renderCalendar();
+  }
+
+  function formatDateForInput(d) {
+    const dateObj = new Date(d);
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function formatDateBR(d) {
+    if (!d) return '';
+    const dateObj = new Date(d);
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const yyyy = dateObj.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  function notifyTyping() {
+    const nome = document.getElementById('nome').value.trim();
+    const inputDate = document.getElementById('eventDate').value;
+    
+    if (typingDebounceTimer) clearTimeout(typingDebounceTimer);
+
+    typingDebounceTimer = setTimeout(() => {
+      if (nome && inputDate) {
+        const selectedDateObj = new Date(inputDate + 'T12:00:00');
+        google.script.run.salvarEstadoDigitando(selectedDateObj.toISOString(), currentUser);
+      } else {
+        google.script.run.salvarEstadoDigitando(null, currentUser);
+      }
+    }, 500);
+  }
+
+  function switchTab(tabName) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+    if (tabName === 'calendar') {
+      document.getElementById('tabCalendarBtn').classList.add('active');
+      document.getElementById('tabCalendar').classList.add('active');
+    } else if (tabName === 'list') {
+      document.getElementById('tabListBtn').classList.add('active');
+      document.getElementById('tabList').classList.add('active');
+      renderListView();
+    } else {
+      document.getElementById('tabLogsBtn').classList.add('active');
+      document.getElementById('tabLogs').classList.add('active');
+      loadLogs();
+    }
+  }
+
+  function startAutoRefreshTimer() {
+    setInterval(() => {
+      refreshTimerSeconds--;
+      if (refreshTimerSeconds <= 0) {
+        refreshTimerSeconds = 20;
+        loadEventsSilently();
+      }
+      document.getElementById('refreshCounter').innerText = `🔄 Atualizando em: ${refreshTimerSeconds}s`;
+    }, 1000);
+  }
+
+  function parseResponseData(data) {
+    if (!data) return { events: [], typing: [] };
+    if (Array.isArray(data)) {
+      return { events: data, typing: [] };
+    }
+    return {
+      events: data.events || [],
+      typing: data.typing || []
+    };
+  }
+
+  function loadEventsSilently() {
+    google.script.run
+      .withSuccessHandler(function(data) {
+        const parsed = parseResponseData(data);
+        events = parsed.events;
+        typingUsers = parsed.typing;
+        renderCalendar();
+        if (document.getElementById('tabList').classList.contains('active')) {
+          renderListView();
+        }
+      })
+      .obterAgendamentos();
+  }
+
+  function efetuarLogin() {
+    const user = document.getElementById('loginUser').value.trim();
+    const pass = document.getElementById('loginPass').value.trim();
+    const errEl = document.getElementById('loginError');
+    errEl.innerText = "";
+
+    if (!user || !pass) { 
+      errEl.innerText = "Preencha usuário e senha!"; 
+      return; 
+    }
+
+    showLoading("Autenticando...");
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        if (data.status === "success") {
+          currentUser = data.usuario;
+          localStorage.setItem('usuarioLogado', currentUser);
+          document.getElementById('loginOverlay').style.display = 'none';
+          document.getElementById('currentUserDisplay').innerText = currentUser;
+          document.getElementById('atendente').value = currentUser;
+          showLoading("");
+          loadEventsFromSheets();
+          loadLogs();
+        } else {
+          errEl.innerText = data.message || "Dados de acesso inválidos!";
+          showLoading("");
+        }
+      })
+      .withFailureHandler(function(err) {
+        errEl.innerText = "Erro ao conectar com o servidor.";
+        showLoading("");
+      })
+      .processarLogin(user, pass);
+  }
+
+  function logout() {
+    google.script.run.salvarEstadoDigitando(null, currentUser);
+    localStorage.removeItem('usuarioLogado');
+    currentUser = null;
+    document.getElementById('loginUser').value = '';
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginError').innerText = '';
+    document.getElementById('loginOverlay').style.display = 'flex';
+  }
+
+  function loadLogs() {
+    google.script.run
+      .withSuccessHandler(function(logs) {
+        currentLogs = logs || [];
+        const tbody = document.getElementById('logsTableBody');
+        tbody.innerHTML = '';
+        if (!currentLogs || currentLogs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Nenhuma modificação registrada até o momento.</td></tr>';
+          return;
+        }
+        currentLogs.forEach(l => {
+          tbody.innerHTML += `<tr><td>${l.dataHora}</td><td><strong>${l.usuario}</strong></td><td>${l.alteracao}</td></tr>`;
+        });
+      })
+      .obterLogs();
+  }
+
+  function downloadLogsTXT() {
+    if (!currentLogs || currentLogs.length === 0) {
+      alert("Não há dados de histórico para salvar.");
+      return;
+    }
+
+    let txtContent = "=========================================================\n";
+    txtContent += " HISTÓRICO DE MODIFICAÇÕES - AGENDA UPLINK TELECOM\n";
+    txtContent += " Gerado em: " + new Date().toLocaleString('pt-BR') + "\n";
+    txtContent += "=========================================================\n\n";
+
+    currentLogs.forEach(l => {
+      txtContent += `[${l.dataHora}] Usuário: ${l.usuario}\n`;
+      txtContent += `Modificação: ${l.alteracao}\n`;
+      txtContent += "---------------------------------------------------------\n";
+    });
+
+    const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Historico_Agenda_${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function renderListView() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    document.getElementById('listTitle').innerText = `Agendamentos de ${monthNamesFull[month]} ${year}`;
+
+    const tbody = document.getElementById('listTableBody');
+    tbody.innerHTML = '';
+
+    const monthEvents = events.filter(ev => {
+      const d = new Date(ev.date);
+      const isSameMonth = d.getFullYear() === year && d.getMonth() === month;
+      const isCityMatch = (ev.cidade === selectedCity);
+      return isSameMonth && isCityMatch;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (monthEvents.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;">Nenhum agendamento encontrado para o mês e cidade selecionados.</td></tr>';
+      return;
+    }
+
+    monthEvents.forEach(ev => {
+      const dateObj = new Date(ev.date);
+      const dayNum = dateObj.getDate();
+      const rowClass = (dayNum % 2 !== 0) ? 'row-odd-date' : 'row-even-date';
+
+      tbody.innerHTML += `
+        <tr class="${rowClass}" style="cursor:pointer;" onclick="editEvent('${ev.id}')">
+          <td>${formatDateBR(ev.date)}</td>
+          <td>${ev.ordem ? ev.ordem + 'º' : '-'}</td>
+          <td><strong>${ev.nome || ''}</strong></td>
+          <td>${ev.cidade || ''}</td>
+          <td>${ev.bairro || ''}</td>
+          <td>${ev.turno || ''}</td>
+          <td>${ev.servico || ''}</td>
+          <td>${ev.status || ''}</td>
+          <td>${ev.contato || ''}</td>
+          <td>${ev.atendente || ''}</td>
+        </tr>
+      `;
+    });
+  }
+
+  function exportListCSV() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+
+    const monthEvents = events.filter(ev => {
+      const d = new Date(ev.date);
+      const isSameMonth = d.getFullYear() === year && d.getMonth() === month;
+      const isCityMatch = (ev.cidade === selectedCity);
+      return isSameMonth && isCityMatch;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (monthEvents.length === 0) {
+      alert("Não há agendamentos filtrados para exportar.");
+      return;
+    }
+
+    let csvContent = "\uFEFFData;Ticket;Ordem;Cliente;CPF;Plano;Cidade;Bairro;Tipo;Turno;Servico;Status;Responsavel;Atendente;Obs\n";
+
+    monthEvents.forEach(ev => {
+      csvContent += `"${formatDateBR(ev.date)}";"${ev.ticket || ''}";"${ev.ordem || ''}";"${ev.nome || ''}";"${ev.cpf || ''}";"${ev.plano || ''}";"${ev.cidade || ''}";"${ev.bairro || ''}";"${ev.tipo || ''}";"${ev.turno || ''}";"${ev.servico || ''}";"${ev.status || ''}";"${ev.responsavel || ''}";"${ev.atendente || ''}";"${ev.obs || ''}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Agendamentos_${monthNamesFull[month]}_${year}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function loadEventsFromSheets() {
+    showLoading("Carregando...");
+    google.script.run
+      .withSuccessHandler(function(data) {
+        const parsed = parseResponseData(data);
+        events = parsed.events;
+        typingUsers = parsed.typing;
+        renderCalendar();
+        if (document.getElementById('tabList').classList.contains('active')) {
+          renderListView();
+        }
+        showLoading("");
+      })
+      .withFailureHandler(function(err) {
+        console.error(err);
+        showLoading("Erro ao carregar");
+      })
+      .obterAgendamentos();
+  }
+
+  function saveEventToSheets(eventData) {
+    showLoading("Salvando...");
+    google.script.run.salvarEstadoDigitando(null, currentUser);
+    google.script.run
+      .withSuccessHandler(function() {
+        showLoading("Salvo!");
+        loadLogs();
+        setTimeout(() => showLoading(""), 2000);
+      })
+      .salvarAgendamentoServer(eventData, currentUser);
+  }
+
+  function deleteEventToSheets(eventId) {
+    showLoading("Excluindo...");
+    google.script.run
+      .withSuccessHandler(function() {
+        showLoading("Excluí!");
+        loadLogs();
+        setTimeout(() => showLoading(""), 2000);
+      })
+      .excluirAgendamentoServer(eventId, currentUser);
+  }
+
+  function showLoading(msg) { document.getElementById('loadingStatus').innerText = msg; }
+
+  function renderCityFilters() {
+    const filterContainer = document.getElementById('cityFilters');
+    filterContainer.innerHTML = '';
+    Object.keys(cityData).forEach(city => {
+      const isSelected = (selectedCity === city);
+      filterContainer.innerHTML += `
+        <label>
+          <input type="radio" name="cityRadio" value="${city}" ${isSelected ? 'checked' : ''} onchange="selectSingleCity('${city}')">
+          <span>${cityData[city].emoji} ${city}</span>
+        </label>
+      `;
+    });
+  }
+
+  function selectSingleCity(city) {
+    selectedCity = city;
+    renderCalendar();
+    if (document.getElementById('tabList').classList.contains('active')) {
+      renderListView();
+    }
+  }
+
+  const headerEl = document.getElementById('calendarHeader');
+  headerEl.innerHTML = '';
+  daysOfWeek.forEach(d => headerEl.innerHTML += `<div class="day-header">${d}</div>`);
+
+  function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    
+    document.getElementById('monthTitle').innerText = `${monthNamesAbbr[month]} ${year}`;
+    
+    const gridEl = document.getElementById('calendarGrid');
+    gridEl.innerHTML = '';
+
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < firstDayIndex; i++) {
+      const emptyCell = document.createElement('div');
+      emptyCell.className = 'day-cell';
+      emptyCell.style.background = '#f8f9fa';
+      gridEl.appendChild(emptyCell);
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const cellDate = new Date(year, month, day);
+      const isWeekend = (cellDate.getDay() === 0 || cellDate.getDay() === 6);
+      
+      const cell = document.createElement('div');
+      cell.className = `day-cell ${isWeekend ? 'weekend' : ''}`;
+      cell.dataset.date = cellDate.toISOString();
+      cell.innerHTML = `<strong>${day}</strong>`;
+
+      cell.ondragover = e => e.preventDefault();
+      cell.ondrop = e => handleDrop(e, cellDate);
+
+      if (typingUsers && typingUsers.length > 0) {
+        typingUsers.forEach(t => {
+          if (t.usuario !== currentUser && t.date) {
+            const tDate = new Date(t.date);
+            if (tDate.toDateString() === cellDate.toDateString()) {
+              const typingCard = document.createElement('div');
+              typingCard.className = 'typing-card';
+              typingCard.innerText = `✍️ ${t.usuario} digitando...`;
+              cell.appendChild(typingCard);
+            }
+          }
+        });
+      }
+
+      const dayEvents = events.filter(ev => new Date(ev.date).toDateString() === cellDate.toDateString())
+                              .sort((a, b) => {
+                                const ordA = a.ordem !== undefined && a.ordem !== '' ? Number(a.ordem) : Infinity;
+                                const ordB = b.ordem !== undefined && b.ordem !== '' ? Number(b.ordem) : Infinity;
+                                return ordA - ordB;
+                              });
+
+      dayEvents.forEach(ev => {
+        if (ev.cidade === selectedCity) {
+          const card = createCardElement(ev);
+          cell.appendChild(card);
+        }
+      });
+
+      gridEl.appendChild(cell);
+    }
+  }
+
+  function createCardElement(ev) {
+    const card = document.createElement('div');
+    card.className = 'event-card';
+    card.id = ev.id;
+    card.draggable = true;
+    
+    card.style.fontSize = `${currentCardFontSize}px`;
+    
+    const cityInfo = cityData[ev.cidade] || { color: '#4a5568', lightBg: '#f7fafc' };
+
+    if (ev.status === 'AGENDANDO') {
+      card.style.backgroundColor = cityInfo.lightBg;
+      card.style.color = cityInfo.color;
+      card.style.border = `2px dashed ${cityInfo.color}`;
+    } else {
+      card.style.backgroundColor = cityInfo.color;
+      card.style.color = '#ffffff';
+      card.style.border = '2px solid transparent';
+    }
+
+    let orderTagStyle = ev.status === 'AGENDANDO' 
+      ? `background: rgba(0, 0, 0, 0.08); color: ${cityInfo.color};` 
+      : `background: rgba(0, 0, 0, 0.25); color: #fff;`;
+
+    const ordemTxt = ev.ordem ? `<span class="order-tag" style="${orderTagStyle}">${ev.ordem}º</span>` : '';
+    const emojiStatus = statusEmojis[ev.status] ? `${statusEmojis[ev.status]} ` : '';
+
+    const turnoNome = (ev.turno === 'Tarde') ? 'TARDE' : 'MANHÃ';
+    const subInfo = ev.bairro ? `${turnoNome} - ${ev.bairro.toUpperCase()}` : turnoNome;
+    const subTxt = `<div class="event-card-sub" style="color: inherit; font-size: ${Math.max(8, currentCardFontSize - 1)}px;">${subInfo}</div>`;
+
+    card.innerHTML = `
+      <div class="event-card-title">${emojiStatus}${ordemTxt}${ev.nome.toUpperCase()}</div>
+      ${subTxt}
+    `;
+
+    card.onclick = (e) => { e.stopPropagation(); editEvent(ev.id); };
+    card.ondragstart = e => e.dataTransfer.setData("text/plain", ev.id);
+    return card;
+  }
+
+  function handleNavDragOver(e, delta) {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+    if (!dragNavTimer) {
+      dragNavTimer = setTimeout(() => { changeMonth(delta); clearTimeout(dragNavTimer); dragNavTimer = null; }, 800);
+    }
+  }
+
+  function handleNavDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+    if (dragNavTimer) { clearTimeout(dragNavTimer); dragNavTimer = null; }
+  }
+
+  function handleDrop(e, targetDate) {
+    e.preventDefault();
+    const currentMonthStart = new Date(realToday.getFullYear(), realToday.getMonth(), 1);
+    if (targetDate < currentMonthStart) {
+      alert("Não é permitido mover agendamentos para meses anteriores ao mês corrente.");
+      return;
+    }
+    const eventId = e.dataTransfer.getData("text/plain");
+    const ev = events.find(item => item.id === eventId);
+    if (ev) {
+      ev.date = targetDate.toISOString();
+      renderCalendar();
+      if (document.getElementById('tabList').classList.contains('active')) {
+        renderListView();
+      }
+      saveEventToSheets(ev);
+    }
+  }
+
+  function saveEvent() {
+    const id = document.getElementById('eventId').value;
+    const nome = document.getElementById('nome').value.trim();
+    const inputDate = document.getElementById('eventDate').value;
+
+    if (!nome) return alert("Informe o nome!");
+    if (!inputDate) return alert("Informe a data do agendamento!");
+
+    const selectedDateObj = new Date(inputDate + 'T12:00:00');
+    const eventDate = selectedDateObj.toISOString();
+
+    document.getElementById('atendente').value = currentUser;
+
+    const dataObj = {
+      id: id || 'evt-' + Date.now(),
+      ticket: document.getElementById('ticket').value.trim().toUpperCase(),
+      ordem: document.getElementById('ordem').value,
+      nome: nome.toUpperCase(),
+      cpf: document.getElementById('cpf').value.trim().toUpperCase(),
+      plano: document.getElementById('plano').value,
+      cidade: document.getElementById('cidade').value,
+      turno: document.getElementById('turno').value,
+      tipo: document.getElementById('tipo').value,
+      bairro: document.getElementById('bairro').value.trim().toUpperCase(),
+      contato: document.getElementById('contato').value.trim().toUpperCase(),
+      servico: document.getElementById('servico').value,
+      status: document.getElementById('status').value,
+      responsavel: document.getElementById('responsavel').value.trim().toUpperCase(),
+      atendente: currentUser,
+      obs: document.getElementById('obs').value.trim().toUpperCase(),
+      date: eventDate
+    };
+
+    if (id) {
+      const idx = events.findIndex(e => e.id === id);
+      events[idx] = dataObj;
+    } else {
+      events.push(dataObj);
+    }
+
+    resetForm();
+    renderCalendar();
+    if (document.getElementById('tabList').classList.contains('active')) {
+      renderListView();
+    }
+    saveEventToSheets(dataObj);
+  }
+
+  function copyEventData() {
+    const nome = document.getElementById('nome').value.trim().toUpperCase();
+    const inputDate = document.getElementById('eventDate').value;
+
+    if (!nome && !inputDate) return;
+
+    const dataBr = inputDate ? formatDateBR(inputDate + 'T12:00:00') : 'NÃO INFORMADA';
+    const ticket = document.getElementById('ticket').value.trim().toUpperCase();
+    const ordem = document.getElementById('ordem').value;
+    const cpf = document.getElementById('cpf').value.trim().toUpperCase() || 'NÃO INFORMADO';
+    const plano = document.getElementById('plano').value;
+    const cidade = document.getElementById('cidade').value;
+    const turno = document.getElementById('turno').value.toUpperCase();
+    const tipo = document.getElementById('tipo').value.toUpperCase();
+    const bairro = document.getElementById('bairro').value.trim().toUpperCase() || 'NÃO INFORMADO';
+    const contato = document.getElementById('contato').value.trim().toUpperCase() || 'NÃO INFORMADO';
+    const servico = document.getElementById('servico').value.toUpperCase();
+    const status = document.getElementById('status').value.toUpperCase();
+    const responsavel = document.getElementById('responsavel').value.trim().toUpperCase() || 'NÃO INFORMADO';
+    const atendente = document.getElementById('atendente').value.toUpperCase() || currentUser || 'NÃO INFORMADO';
+    const obs = document.getElementById('obs').value.trim().toUpperCase() || 'NENHUMA';
+
+    let txt = `AGENDAMENTO UPLINK TELECOM\n`;
+    txt += `-----------------------------\n`;
+    txt += `Data: ${dataBr}\n`;
+    if (ticket) txt += `Ticket: ${ticket}\n`;
+    if (ordem) txt += `Ordem: ${ordem}º\n`;
+    txt += `Cliente: ${nome}\n`;
+    txt += `CPF/CNPJ: ${cpf}\n`;
+    txt += `Plano: ${plano}\n`;
+    txt += `Cidade: ${cidade}\n`;
+    txt += `Bairro: ${bairro}\n`;
+    txt += `Tipo: ${tipo}\n`;
+    txt += `Turno: ${turno}\n`;
+    txt += `Serviço: ${servico}\n`;
+    txt += `Contato: ${contato}\n`;
+    txt += `Responsável: ${responsavel}\n`;
+    txt += `Status: ${status}\n`;
+    txt += `Atendente: ${atendente}\n`;
+    txt += `Obs: ${obs}`;
+
+    navigator.clipboard.writeText(txt).then(() => {
+      const btn = document.getElementById('btnCopyData');
+      const originalText = btn.innerText;
+      btn.innerText = "Copiado!";
+      btn.style.backgroundColor = "#2f855a";
+      setTimeout(() => {
+        btn.innerText = originalText;
+        btn.style.backgroundColor = "#38a169";
+      }, 1500);
+    });
+  }
+
+  function deleteEvent() {
+    const id = document.getElementById('eventId').value;
+    if (!id) return;
+    if (confirm("Tem certeza que deseja excluir este agendamento?")) {
+      events = events.filter(e => e.id !== id);
+      resetForm();
+      renderCalendar();
+      if (document.getElementById('tabList').classList.contains('active')) {
+        renderListView();
+      }
+      deleteEventToSheets(id);
+    }
+  }
+
+  function editEvent(id) {
+    const ev = events.find(e => e.id === id);
+    if (!ev) return;
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar.classList.contains('collapsed')) toggleSidebar();
+
+    document.getElementById('eventId').value = ev.id;
+    document.getElementById('eventDate').value = formatDateForInput(ev.date);
+    document.getElementById('ticket').value = (ev.ticket || '').toUpperCase();
+    document.getElementById('ordem').value = ev.ordem || '';
+    document.getElementById('nome').value = (ev.nome || '').toUpperCase();
+    document.getElementById('cpf').value = (ev.cpf || '').toUpperCase();
+    document.getElementById('plano').value = ev.plano || '100 MEGA';
+
+    let currentCity = ev.cidade;
+    if (['Pitimbu', 'Caaporã', 'Acaú'].includes(currentCity)) {
+      currentCity = 'Pitimbu / Caaporã / Acaú';
+    }
+    document.getElementById('cidade').value = currentCity;
+
+    document.getElementById('turno').value = ev.turno || 'Manhã';
+    document.getElementById('tipo').value = ev.tipo || 'Casa';
+    document.getElementById('bairro').value = (ev.bairro || '').toUpperCase();
+    document.getElementById('contato').value = (ev.contato || '').toUpperCase();
+    document.getElementById('servico').value = ev.servico || 'Adesão';
+    document.getElementById('status').value = ev.status || 'AGENDANDO';
+    document.getElementById('responsavel').value = (ev.responsavel || '').toUpperCase();
+    
+    document.getElementById('atendente').value = ev.atendente || 'Desconhecido';
+    document.getElementById('obs').value = (ev.obs || '').toUpperCase();
+
+    document.getElementById('formTitle').innerText = 'Editar Agendamento';
+    document.getElementById('btnDelete').style.display = 'block';
+  }
+
+  function resetForm() {
+    google.script.run.salvarEstadoDigitando(null, currentUser);
+    document.getElementById('eventId').value = '';
+    document.getElementById('scheduleForm').reset();
+    document.getElementById('eventDate').value = formatDateForInput(new Date());
+    document.getElementById('atendente').value = currentUser || '';
+    document.getElementById('formTitle').innerText = 'Novo Agendamento';
+    document.getElementById('btnDelete').style.display = 'none';
+  }
+
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const openBtn = document.getElementById('openMenuBtn');
+    sidebar.classList.toggle('collapsed');
+    openBtn.style.display = sidebar.classList.contains('collapsed') ? 'block' : 'none';
+  }
+
+  function changeMonth(delta) { 
+    currentDate.setMonth(currentDate.getMonth() + delta); 
+    renderCalendar(); 
+    if (document.getElementById('tabList').classList.contains('active')) {
+      renderListView();
+    }
+  }
+
+  document.getElementById('eventDate').value = formatDateForInput(new Date());
+
+  if (currentUser) {
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('currentUserDisplay').innerText = currentUser;
+    document.getElementById('atendente').value = currentUser;
+    loadEventsFromSheets();
+    loadLogs();
+  } else {
+    document.getElementById('loginOverlay').style.display = 'flex';
+  }
+
+  renderCityFilters();
+  renderCalendar();
+  startAutoRefreshTimer();
+</script>
+</body>
+</html>
